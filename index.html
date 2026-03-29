@@ -64,26 +64,32 @@ async function checkURL(url) {
   }
 }
 
-// RUN CHECK
 async function runCheck() {
   const urls = document.getElementById("urls").value
     .split("\n")
     .map(u => u.trim())
     .filter(u => u);
 
+  const response = await fetch("https://url-checker-api-qwfh.onrender.com", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ urls })
+  });
+
+  const data = await response.json();
+
   const tbody = document.getElementById("results");
   tbody.innerHTML = "";
 
-  for (let url of urls) {
-    const result = await checkURL(url);
-
+  for (let item of data) {
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${url}</td>
-      <td class="${result.class}">${result.status}</td>
+      <td>${item.url}</td>
+      <td>${item.status}</td>
       <td>${new Date().toLocaleTimeString()}</td>
     `;
-
     tbody.appendChild(row);
   }
 }
