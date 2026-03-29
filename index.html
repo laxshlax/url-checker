@@ -21,7 +21,7 @@ input { padding:6px; }
 
 <h2>🌐 URL Monitor Dashboard</h2>
 
-<!-- MANUAL CHECK -->
+<!-- ================= MANUAL CHECK ================= -->
 <div class="section">
 <h3>🔍 Manual Check</h3>
 
@@ -42,7 +42,8 @@ input { padding:6px; }
 <tbody id="results"></tbody>
 </table>
 
-<!-- NEW FEATURE -->
+<br>
+
 <button onclick="addCheckedToMonitor()">➕ Add results to Monitor</button>
 <label>
   <input type="checkbox" id="onlyFailed">
@@ -51,7 +52,7 @@ input { padding:6px; }
 
 </div>
 
-<!-- EMAIL -->
+<!-- ================= EMAIL ================= -->
 <div class="section">
 <h3>📧 Alert Email</h3>
 <input type="email" id="email" placeholder="Enter alert email" style="width:60%">
@@ -59,29 +60,37 @@ input { padding:6px; }
 <p id="emailStatus"></p>
 </div>
 
-<!-- SUBJECTS -->
+<!-- ================= SUBJECTS ================= -->
 <div class="section">
 <h3>✉️ Email Subjects</h3>
 
-<label>Manual:</label><br>
+<label>Manual Check Subject:</label><br>
 <input type="text" id="manualSubject" style="width:60%"><br><br>
 
-<label>Monitor:</label><br>
+<label>Monitoring Subject:</label><br>
 <input type="text" id="monitorSubject" style="width:60%"><br><br>
 
-<button onclick="setSubjects()">Save</button>
+<button onclick="setSubjects()">Save Subjects</button>
 <p id="subjectStatus"></p>
 </div>
 
-<!-- INTERVAL -->
+<!-- ================= INTERVAL ================= -->
 <div class="section">
-<h3>⏱ Interval</h3>
-<input type="number" id="interval" value="60"> minutes
+<h3>⏱ Monitoring Interval</h3>
+<input type="number" id="interval" value="60" min="1"> minutes
 <button onclick="setIntervalTime()">Update</button>
 <p id="intervalStatus"></p>
 </div>
 
-<!-- MONITORED -->
+<!-- ================= ADD URL ================= -->
+<div class="section">
+<h3>➕ Add Single URL</h3>
+<input type="text" id="singleUrl" placeholder="Enter URL or DOI" style="width:60%">
+<button onclick="addUrl()">Add</button>
+<p id="addStatus"></p>
+</div>
+
+<!-- ================= MONITORED TABLE ================= -->
 <div class="section">
 <h3>📋 Monitored URLs</h3>
 <button onclick="loadUrls()">Refresh</button>
@@ -93,6 +102,8 @@ input { padding:6px; }
 <th>Status</th>
 <th>Last Checked</th>
 <th>Last Email</th>
+<th>Interval</th>
+<th>Email</th>
 <th>Action</th>
 </tr>
 </thead>
@@ -105,6 +116,7 @@ const API = "https://url-checker-api-1qyw.onrender.com";
 
 let lastResults = [];
 
+// Normalize URL
 function normalize(u) {
   u = u.trim();
   if (u.startsWith("http")) return u;
@@ -112,7 +124,7 @@ function normalize(u) {
   return "https://" + u;
 }
 
-// CHECK
+// ================= MANUAL CHECK =================
 async function runCheck() {
   const input = document.getElementById("urls").value;
   if (!input) return alert("Enter URLs");
@@ -122,27 +134,40 @@ async function runCheck() {
 
   document.getElementById("status").innerText = "Checking...";
 
-  const res = await fetch(API + "/check", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ urls, sendEmail })
-  });
+  try {
+    const res = await fetch(API + "/check", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ urls, sendEmail })
+    });
 
-  const data = await res.json();
-  lastResults = data.results;
+    if (!res.ok) throw new Error("Server error");
 
-  const tbody = document.getElementById("results");
-  tbody.innerHTML = "";
+    const data = await res.json();
+    lastResults = data.results;
 
-  data.results.forEach(d => {
-    const cls = d.status.includes("Working") ? "ok" : "fail";
-    tbody.innerHTML += `<tr><td>${d.url}</td><td class="${cls}">${d.status}</td></tr>`;
-  });
+    const tbody = document.getElementById("results");
+    tbody.innerHTML = "";
 
-  document.getElementById("status").innerText = "Done";
+    data.results.forEach(d => {
+      const cls = d.status.includes("Working") ? "ok" : "fail";
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${d.url}</td>
+          <td class="${cls}">${d.status}</td>
+        </tr>
+      `;
+    });
+
+    document.getElementById("status").innerText = "✅ Done";
+
+  } catch (err) {
+    document.getElementById("status").innerText = "❌ " + err.message;
+  }
 }
 
-// ADD MULTIPLE
+// ================= ADD MULTIPLE =================
 async function addCheckedToMonitor() {
   if (!lastResults.length) return alert("Run check first");
 
@@ -151,6 +176,8 @@ async function addCheckedToMonitor() {
   const urls = lastResults
     .filter(r => !onlyFailed || !r.status.includes("Working"))
     .map(r => r.url);
+
+  if (!urls.length) return alert("Nothing to add");
 
   for (const url of urls) {
     await fetch(API + "/urls/add", {
@@ -164,15 +191,41 @@ async function addCheckedToMonitor() {
   loadUrls();
 }
 
-// LOAD
+// ================= ADD SINGLE =================
+async function addUrl() {
+  const input = document.getElementById("singleUrl").value;
+  if (!input) return;
+
+  const url = normalize(input);
+
+  const res = await fetch(API + "/urls/add", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ url })
+  });
+
+  const data = await res.json();
+  document.getElementById("addStatus").innerText = data.message || data.error;
+
+  loadUrls();
+}
+
+// ================= LOAD =================
 async function loadUrls() {
   const res = await fetch(API + "/urls");
   const data = await res.json();
 
+  const { urls, interval, email, manualSubject, monitorSubject } = data;
+
+  document.getElementById("manualSubject").value = manualSubject || "";
+  document.getElementById("monitorSubject").value = monitorSubject || "";
+  document.getElementById("email").value = email || "";
+  document.getElementById("interval").value = interval || 60;
+
   const tbody = document.getElementById("urlList");
   tbody.innerHTML = "";
 
-  data.urls.forEach(u => {
+  urls.forEach(u => {
     const cls = u.status.includes("Working") ? "ok" : "fail";
 
     tbody.innerHTML += `
@@ -181,22 +234,69 @@ async function loadUrls() {
         <td class="${cls}">${u.status}</td>
         <td>${u.lastChecked || "-"}</td>
         <td>${u.lastEmailSent || "-"}</td>
+        <td>${interval} min</td>
+        <td>${email}</td>
         <td><button onclick="removeUrl('${u.url}')">Remove</button></td>
       </tr>
     `;
   });
 }
 
-// REMOVE
+// ================= REMOVE =================
 async function removeUrl(url) {
   await fetch(API + "/urls/remove", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ url })
   });
+
   loadUrls();
 }
 
+// ================= EMAIL =================
+async function setEmail() {
+  const email = document.getElementById("email").value;
+
+  const res = await fetch(API + "/set-email", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ email })
+  });
+
+  const data = await res.json();
+  document.getElementById("emailStatus").innerText = data.message;
+}
+
+// ================= SUBJECT =================
+async function setSubjects() {
+  const manual = document.getElementById("manualSubject").value;
+  const monitor = document.getElementById("monitorSubject").value;
+
+  const res = await fetch(API + "/set-subjects", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ manual, monitor })
+  });
+
+  const data = await res.json();
+  document.getElementById("subjectStatus").innerText = data.message;
+}
+
+// ================= INTERVAL =================
+async function setIntervalTime() {
+  const minutes = document.getElementById("interval").value;
+
+  const res = await fetch(API + "/set-interval", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ minutes })
+  });
+
+  const data = await res.json();
+  document.getElementById("intervalStatus").innerText = data.message;
+}
+
+// Init
 loadUrls();
 </script>
 
