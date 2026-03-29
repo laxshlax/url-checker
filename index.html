@@ -26,7 +26,12 @@ input { padding:6px; }
 <h3>🔍 Manual Check</h3>
 
 <textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
+
 <button onclick="runCheck()">Check Now</button>
+<label>
+  <input type="checkbox" id="sendEmailNow">
+  Send email for this check
+</label>
 
 <p id="status"></p>
 
@@ -93,7 +98,6 @@ input { padding:6px; }
 <script>
 const API = "https://url-checker-api-1qyw.onrender.com";
 
-// Normalize URL / DOI
 function normalize(u) {
   u = u.trim();
   if (u.startsWith("http")) return u;
@@ -107,36 +111,33 @@ async function runCheck() {
   if (!input) return alert("Enter URLs");
 
   const urls = input.split("\n").map(normalize);
+  const sendEmail = document.getElementById("sendEmailNow").checked;
 
   document.getElementById("status").innerText = "Checking...";
 
-  try {
-    const res = await fetch(API + "/check", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ urls })
-    });
+  const res = await fetch(API + "/check", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ urls, sendEmail })
+  });
 
-    const data = await res.json();
-    const tbody = document.getElementById("results");
-    tbody.innerHTML = "";
+  const data = await res.json();
+  const tbody = document.getElementById("results");
+  tbody.innerHTML = "";
 
-    data.forEach(d => {
-      const cls = d.status.includes("Working") ? "ok" : "fail";
+  data.results.forEach(d => {
+    const cls = d.status.includes("Working") ? "ok" : "fail";
 
-      tbody.innerHTML += `
-        <tr>
-          <td>${d.url}</td>
-          <td class="${cls}">${d.status}</td>
-        </tr>
-      `;
-    });
+    tbody.innerHTML += `
+      <tr>
+        <td>${d.url}</td>
+        <td class="${cls}">${d.status}</td>
+      </tr>
+    `;
+  });
 
-    document.getElementById("status").innerText = "Done";
-
-  } catch {
-    document.getElementById("status").innerText = "Error contacting server";
-  }
+  document.getElementById("status").innerText =
+    sendEmail ? "Done + Email Sent (if configured)" : "Done";
 }
 
 // ================= EMAIL =================
@@ -188,34 +189,29 @@ async function addUrl() {
 
 // ================= LOAD =================
 async function loadUrls() {
-  try {
-    const res = await fetch(API + "/urls");
-    const data = await res.json();
+  const res = await fetch(API + "/urls");
+  const data = await res.json();
 
-    const { urls, interval, email } = data;
+  const { urls, interval, email } = data;
 
-    const tbody = document.getElementById("urlList");
-    tbody.innerHTML = "";
+  const tbody = document.getElementById("urlList");
+  tbody.innerHTML = "";
 
-    urls.forEach(u => {
-      const cls = u.status.includes("Working") ? "ok" : "fail";
+  urls.forEach(u => {
+    const cls = u.status.includes("Working") ? "ok" : "fail";
 
-      tbody.innerHTML += `
-        <tr>
-          <td>${u.url}</td>
-          <td class="${cls}">${u.status}</td>
-          <td>${u.lastChecked || "-"}</td>
-          <td>${u.lastEmailSent || "-"}</td>
-          <td>${interval} min</td>
-          <td>${email}</td>
-          <td><button onclick="removeUrl('${u.url}')">Remove</button></td>
-        </tr>
-      `;
-    });
-
-  } catch {
-    console.error("Failed to load URLs");
-  }
+    tbody.innerHTML += `
+      <tr>
+        <td>${u.url}</td>
+        <td class="${cls}">${u.status}</td>
+        <td>${u.lastChecked || "-"}</td>
+        <td>${u.lastEmailSent || "-"}</td>
+        <td>${interval} min</td>
+        <td>${email}</td>
+        <td><button onclick="removeUrl('${u.url}')">Remove</button></td>
+      </tr>
+    `;
+  });
 }
 
 // ================= REMOVE =================
