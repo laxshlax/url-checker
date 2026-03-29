@@ -17,14 +17,29 @@
 
 <body>
 
-<h2>URL Checker (Backend Connected)</h2>
+<h2>URL Checker (Enhanced)</h2>
 
-<textarea id="urls" placeholder="Enter URLs (one per line)"></textarea><br>
+<textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
 
-<label>Interval (minutes): </label>
+<label>Interval:</label>
 <input type="number" id="interval" value="30" min="1">
 
+<select id="unit">
+  <option value="minutes">Minutes</option>
+  <option value="hours">Hours</option>
+</select>
+
+<br><br>
+
+<label>
+  <input type="checkbox" id="emailToggle">
+  Email me results
+</label>
+
+<input type="email" id="email" placeholder="Enter email" style="display:none">
+
 <br>
+
 <button onclick="startChecking()">Start</button>
 <button onclick="stopChecking()">Stop</button>
 
@@ -40,36 +55,55 @@
 </table>
 
 <script>
+const API_URL = "https://url-checker-api-qwfh.onrender.com/check";
+const EMAIL_API = "https://url-checker-api-qwfh.onrender.com/send-email";
+
 let timer = null;
 
-// 🔥 IMPORTANT: Correct API endpoint
-const API_URL = "https://url-checker-api-qwfh.onrender.com/check";
+// Toggle email input
+document.getElementById("emailToggle").addEventListener("change", function() {
+  document.getElementById("email").style.display = this.checked ? "inline" : "none";
+});
 
-async function runCheck() {
+// Normalize input (DOI + URL handling)
+function normalizeUrls(input) {
+  return input
+    .split("\n")
+    .map(u => u.trim())
+    .filter(u => u)
+    .map(u => {
+      if (u.startsWith("http://") || u.startsWith("https://")) {
+        return u;
+      }
+      if (u.startsWith("10.")) {
+        return "https://doi.org/" + u;
+      }
+      if (u.startsWith("doi.org/")) {
+        return "https://" + u;
+      }
+      return "https://" + u;
+    });
+}
+
+// Run check
+async function runCheck(sendEmail = false) {
   const input = document.getElementById("urls").value.trim();
+  if (!input) return alert("Please enter URLs or DOIs");
 
-  if (!input) {
-    alert("Please enter at least one URL");
-    return;
-  }
-
-  const urls = input.split("\n").map(u => u.trim());
+  const urls = normalizeUrls(input);
 
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ urls })
     });
 
-    // 🔥 Handle non-JSON safely (prevents your previous crash)
     const contentType = response.headers.get("content-type");
 
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Non-JSON response:", text);
+      console.error("Server returned non-JSON:", text);
       alert("Server error. Check console.");
       return;
     }
@@ -80,13 +114,7 @@ async function runCheck() {
     tbody.innerHTML = "";
 
     data.forEach(item => {
-      let cls = "ok";
-      if (
-        item.status.includes("Fail") ||
-        item.status.includes("Invalid")
-      ) {
-        cls = "fail";
-      }
+      const cls = item.status.includes("Fail") || item.status.includes("Invalid") ? "fail" : "ok";
 
       const row = document.createElement("tr");
       row.innerHTML = `
@@ -94,25 +122,44 @@ async function runCheck() {
         <td class="${cls}">${item.status}</td>
         <td>${new Date().toLocaleTimeString()}</td>
       `;
-
       tbody.appendChild(row);
     });
 
+    // Email option
+    if (sendEmail && document.getElementById("emailToggle").checked) {
+      const email = document.getElementById("email").value;
+      if (email) {
+        await fetch(EMAIL_API, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ email, results: data })
+        });
+      }
+    }
+
   } catch (err) {
     console.error("Fetch error:", err);
-    alert("Backend not reachable (maybe waking up, wait 30 sec)");
+    alert("Backend not reachable (wait 30s if sleeping)");
   }
 }
 
+// Start interval
 function startChecking() {
-  runCheck();
+  const value = parseInt(document.getElementById("interval").value);
+  const unit = document.getElementById("unit").value;
 
-  const interval = parseInt(document.getElementById("interval").value) || 30;
-  timer = setInterval(runCheck, interval * 60 * 1000);
+  let intervalMs = value * 60 * 1000;
+  if (unit === "hours") {
+    intervalMs = value * 60 * 60 * 1000;
+  }
 
-  alert("Running every " + interval + " minutes");
+  runCheck(true);
+  timer = setInterval(() => runCheck(true), intervalMs);
+
+  alert("Running every " + value + " " + unit);
 }
 
+// Stop interval
 function stopChecking() {
   clearInterval(timer);
   alert("Stopped");
