@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>URL Checker</title>
+
 <style>
   body { font-family: Arial; padding: 20px; }
   textarea { width: 100%; height: 120px; }
@@ -11,13 +12,12 @@
   td, th { border: 1px solid #ccc; padding: 8px; }
   .ok { color: green; }
   .fail { color: red; }
-  .warn { color: orange; }
 </style>
 </head>
 
 <body>
 
-<h2>URL Checker (Timer Enabled)</h2>
+<h2>URL Checker (Backend Powered)</h2>
 
 <textarea id="urls" placeholder="Enter URLs (one per line)"></textarea><br>
 
@@ -42,59 +42,54 @@
 <script>
 let timer = null;
 
-// MAIN CHECK FUNCTION
-async function checkURL(url) {
-  try {
-    const response = await fetch(url);
-    const text = await response.text();
-
-    // DOI-specific detection
-    if (text.includes("DOI Not Found")) {
-      return { status: "Invalid DOI", class: "fail" };
-    }
-
-    if (response.ok) {
-      return { status: "Working (" + response.status + ")", class: "ok" };
-    } else {
-      return { status: "Fail (" + response.status + ")", class: "fail" };
-    }
-
-  } catch (error) {
-    return { status: "Blocked / Failed", class: "warn" };
-  }
-}
-
 async function runCheck() {
+  console.log("Running check...");
+
   const urls = document.getElementById("urls").value
     .split("\n")
     .map(u => u.trim())
     .filter(u => u);
 
-  const response = await fetch("https://url-checker-api-qwfh.onrender.com", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ urls })
-  });
+  if (urls.length === 0) {
+    alert("Please enter at least one URL");
+    return;
+  }
 
-  const data = await response.json();
+  try {
+    const response = await fetch("https://url-checker-api-qwfh.onrender.com/check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ urls })
+    });
 
-  const tbody = document.getElementById("results");
-  tbody.innerHTML = "";
+    const data = await response.json();
 
-  for (let item of data) {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${item.url}</td>
-      <td>${item.status}</td>
-      <td>${new Date().toLocaleTimeString()}</td>
-    `;
-    tbody.appendChild(row);
+    const tbody = document.getElementById("results");
+    tbody.innerHTML = "";
+
+    for (let item of data) {
+      let cls = "ok";
+      if (item.status.includes("Fail") || item.status.includes("Invalid")) {
+        cls = "fail";
+      }
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${item.url}</td>
+        <td class="${cls}">${item.status}</td>
+        <td>${new Date().toLocaleTimeString()}</td>
+      `;
+      tbody.appendChild(row);
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Error connecting to backend (maybe waking up, wait 30s and retry)");
   }
 }
 
-// START TIMER
 function startChecking() {
   const interval = parseInt(document.getElementById("interval").value) || 30;
 
@@ -104,7 +99,6 @@ function startChecking() {
   alert("Running every " + interval + " minutes");
 }
 
-// STOP TIMER
 function stopChecking() {
   clearInterval(timer);
   alert("Stopped");
