@@ -68,7 +68,7 @@ input { padding:6px; }
 <p id="addStatus"></p>
 </div>
 
-<!-- ================= LIST ================= -->
+<!-- ================= MONITORED LIST ================= -->
 <div class="section">
 <h3>📋 Monitored URLs</h3>
 
@@ -76,7 +76,15 @@ input { padding:6px; }
 
 <table>
 <thead>
-<tr><th>URL</th><th>Action</th></tr>
+<tr>
+<th>URL</th>
+<th>Status</th>
+<th>Last Checked</th>
+<th>Last Email Sent</th>
+<th>Interval</th>
+<th>Email</th>
+<th>Action</th>
+</tr>
 </thead>
 <tbody id="urlList"></tbody>
 </table>
@@ -85,7 +93,7 @@ input { padding:6px; }
 <script>
 const API = "https://url-checker-api-1qyw.onrender.com";
 
-// Normalize URL
+// Normalize URL / DOI
 function normalize(u) {
   u = u.trim();
   if (u.startsWith("http")) return u;
@@ -102,28 +110,33 @@ async function runCheck() {
 
   document.getElementById("status").innerText = "Checking...";
 
-  const res = await fetch(API + "/check", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ urls })
-  });
+  try {
+    const res = await fetch(API + "/check", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ urls })
+    });
 
-  const data = await res.json();
-  const tbody = document.getElementById("results");
-  tbody.innerHTML = "";
+    const data = await res.json();
+    const tbody = document.getElementById("results");
+    tbody.innerHTML = "";
 
-  data.forEach(d => {
-    const cls = d.status.includes("Working") ? "ok" : "fail";
+    data.forEach(d => {
+      const cls = d.status.includes("Working") ? "ok" : "fail";
 
-    tbody.innerHTML += `
-      <tr>
-        <td>${d.url}</td>
-        <td class="${cls}">${d.status}</td>
-      </tr>
-    `;
-  });
+      tbody.innerHTML += `
+        <tr>
+          <td>${d.url}</td>
+          <td class="${cls}">${d.status}</td>
+        </tr>
+      `;
+    });
 
-  document.getElementById("status").innerText = "Done";
+    document.getElementById("status").innerText = "Done";
+
+  } catch {
+    document.getElementById("status").innerText = "Error contacting server";
+  }
 }
 
 // ================= EMAIL =================
@@ -175,20 +188,34 @@ async function addUrl() {
 
 // ================= LOAD =================
 async function loadUrls() {
-  const res = await fetch(API + "/urls");
-  const urls = await res.json();
+  try {
+    const res = await fetch(API + "/urls");
+    const data = await res.json();
 
-  const tbody = document.getElementById("urlList");
-  tbody.innerHTML = "";
+    const { urls, interval, email } = data;
 
-  urls.forEach(u => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${u}</td>
-        <td><button onclick="removeUrl('${u}')">Remove</button></td>
-      </tr>
-    `;
-  });
+    const tbody = document.getElementById("urlList");
+    tbody.innerHTML = "";
+
+    urls.forEach(u => {
+      const cls = u.status.includes("Working") ? "ok" : "fail";
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${u.url}</td>
+          <td class="${cls}">${u.status}</td>
+          <td>${u.lastChecked || "-"}</td>
+          <td>${u.lastEmailSent || "-"}</td>
+          <td>${interval} min</td>
+          <td>${email}</td>
+          <td><button onclick="removeUrl('${u.url}')">Remove</button></td>
+        </tr>
+      `;
+    });
+
+  } catch {
+    console.error("Failed to load URLs");
+  }
 }
 
 // ================= REMOVE =================
@@ -202,7 +229,7 @@ async function removeUrl(url) {
   loadUrls();
 }
 
-// Load initial list
+// Initial load
 loadUrls();
 </script>
 
