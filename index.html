@@ -51,6 +51,20 @@ input { padding:6px; }
 <p id="emailStatus"></p>
 </div>
 
+<!-- SUBJECTS -->
+<div class="section">
+<h3>✉️ Email Subjects</h3>
+
+<label>Manual Check Subject:</label><br>
+<input type="text" id="manualSubject" style="width:60%"><br><br>
+
+<label>Monitoring Alert Subject:</label><br>
+<input type="text" id="monitorSubject" style="width:60%"><br><br>
+
+<button onclick="setSubjects()">Save Subjects</button>
+<p id="subjectStatus"></p>
+</div>
+
 <!-- INTERVAL -->
 <div class="section">
 <h3>⏱ Monitoring Interval</h3>
@@ -154,6 +168,21 @@ async function setEmail() {
   document.getElementById("emailStatus").innerText = data.message || data.error;
 }
 
+// SUBJECTS
+async function setSubjects() {
+  const manual = document.getElementById("manualSubject").value;
+  const monitor = document.getElementById("monitorSubject").value;
+
+  const res = await fetch(API + "/set-subjects", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ manual, monitor })
+  });
+
+  const data = await res.json();
+  document.getElementById("subjectStatus").innerText = data.message;
+}
+
 // INTERVAL
 async function setIntervalTime() {
   const minutes = document.getElementById("interval").value;
@@ -192,7 +221,10 @@ async function loadUrls() {
   const res = await fetch(API + "/urls");
   const data = await res.json();
 
-  const { urls, interval, email } = data;
+  const { urls, interval, email, manualSubject, monitorSubject } = data;
+
+  document.getElementById("manualSubject").value = manualSubject || "";
+  document.getElementById("monitorSubject").value = monitorSubject || "";
 
   const tbody = document.getElementById("urlList");
   tbody.innerHTML = "";
