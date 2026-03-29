@@ -1,119 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>24/7 URL Monitor Dashboard</title>
-    <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input { padding: 10px; width: 70%; border: 1px solid #ddd; border-radius: 4px; }
-        button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
-        button:hover { background: #0056b3; }
-        .delete-btn { background: #dc3545; margin-left: 10px; }
-        .delete-btn:hover { background: #a71d2a; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; background: #e9ecef; }
-    </style>
+<meta charset="UTF-8">
+<title>URL Checker</title>
+
+<style>
+body { font-family: Arial; padding: 20px; background:#f4f4f9; }
+textarea { width:100%; height:140px; padding:10px; }
+button { padding:10px 15px; margin-top:10px; cursor:pointer; }
+table { width:100%; margin-top:20px; border-collapse: collapse; }
+td, th { padding:10px; border:1px solid #ddd; }
+.ok { color:green; }
+.fail { color:red; }
+</style>
 </head>
+
 <body>
 
-    <h2>🌐 URL Background Monitor</h2>
-    <p>The server checks these URLs every hour even if you close this page.</p>
+<h2>🌐 URL Checker (Multi URL + DOI Support)</h2>
 
-    <div class="card">
-        <h3>Add New URL to Monitor</h3>
-        <input type="text" id="urlInput" placeholder="https://example.com">
-        <button onclick="addUrl()">Add to 24/7 List</button>
-    </div>
+<textarea id="urls" placeholder="Enter multiple URLs or DOIs (one per line)"></textarea>
 
-    <div class="card">
-        <h3>Currently Monitoring</h3>
-        <button onclick="fetchActiveUrls()" style="background: #28a745;">🔄 Refresh List</button>
-        <table>
-            <thead>
-                <tr>
-                    <th>URL</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="urlTableBody">
-                </tbody>
-        </table>
-    </div>
+<br>
+<button onclick="runCheck()">Check Now</button>
 
-    <script>
-        // REPLACE THIS with your actual Render URL
-        const API_BASE = "https://your-app-name.onrender.com";
+<table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
+</table>
 
-        // 1. Fetch the list of URLs the server is currently "remembering"
-        async function fetchActiveUrls() {
-            try {
-                const response = await fetch(`${API_BASE}/urls`);
-                const urls = await response.json();
-                renderTable(urls);
-            } catch (err) {
-                console.error("Failed to fetch URLs", err);
-            }
-        }
+<script>
+const API_URL = "https://url-checker-api-1qyw.onrender.com/check";
 
-        // 2. Send a new URL to the server to be monitored 24/7
-        async function addUrl() {
-            const url = document.getElementById('urlInput').value;
-            if (!url) return alert("Please enter a URL");
+// Normalize URLs + DOIs
+function normalizeUrls(input) {
+  return input
+    .split("\n")
+    .map(u => u.trim())
+    .filter(u => u)
+    .map(u => {
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      if (u.startsWith("10.")) return "https://doi.org/" + u;
+      if (u.startsWith("doi.org/")) return "https://" + u;
+      return "https://" + u;
+    });
+}
 
-            try {
-                const response = await fetch(`${API_BASE}/urls/add`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                const data = await response.json();
-                if (data.error) alert(data.error);
-                
-                document.getElementById('urlInput').value = '';
-                fetchActiveUrls(); // Refresh the view
-            } catch (err) {
-                alert("Error adding URL");
-            }
-        }
+async function runCheck() {
+  const input = document.getElementById("urls").value;
 
-        // 3. Tell the server to STOP monitoring a specific URL
-        async function removeUrl(url) {
-            try {
-                await fetch(`${API_BASE}/urls/remove`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                fetchActiveUrls(); // Refresh the view
-            } catch (err) {
-                alert("Error removing URL");
-            }
-        }
+  if (!input) {
+    alert("Please enter URLs or DOIs");
+    return;
+  }
 
-        // Helper: Build the table UI
-        function renderTable(urls) {
-            const tbody = document.getElementById('urlTableBody');
-            tbody.innerHTML = '';
-            
-            if (urls.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2">No URLs being monitored.</td></tr>';
-                return;
-            }
+  const urls = normalizeUrls(input);
 
-            urls.forEach(url => {
-                const row = `<tr>
-                    <td>${url}</td>
-                    <td><button class="delete-btn" onclick="removeUrl('${url}')">Stop Monitoring</button></td>
-                </tr>`;
-                tbody.innerHTML += row;
-            });
-        }
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls })
+    });
 
-        // Load list immediately on page open
-        fetchActiveUrls();
-    </script>
+    const data = await res.json();
+
+    const tbody = document.getElementById("results");
+    tbody.innerHTML = "";
+
+    data.forEach(item => {
+      const cls =
+        item.status.includes("Fail") || item.status.includes("Invalid")
+          ? "fail"
+          : "ok";
+
+      const row = `
+        <tr>
+          <td>${item.url}</td>
+          <td class="${cls}">${item.status}</td>
+        </tr>
+      `;
+
+      tbody.innerHTML += row;
+    });
+
+  } catch (err) {
+    console.error(err);
+    alert("Backend error (Render may be waking up, try again in 20s)");
+  }
+}
+</script>
+
 </body>
 </html>
