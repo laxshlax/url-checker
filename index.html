@@ -1,21 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>URL Checker</title>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    textarea { width: 100%; height: 120px; }
-    button { margin-top: 10px; padding: 8px 12px; }
-    table { margin-top: 20px; border-collapse: collapse; width: 100%; }
-    td, th { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    .ok { color: green; }
-    .fail { color: red; }
-  </style>
+<meta charset="UTF-8">
+<title>URL Checker</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  textarea { width: 100%; height: 120px; }
+  button { margin-top: 10px; padding: 8px 12px; }
+  table { margin-top: 20px; border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccc; padding: 8px; }
+  .ok { color: green; }
+  .fail { color: red; }
+  .warn { color: orange; }
+</style>
 </head>
+
 <body>
 
-<h2>URL Checker (30-min Interval)</h2>
+<h2>URL Checker (Timer Enabled)</h2>
 
 <textarea id="urls" placeholder="Enter URLs (one per line)"></textarea><br>
 
@@ -26,48 +28,59 @@
 <button onclick="startChecking()">Start</button>
 <button onclick="stopChecking()">Stop</button>
 
-<table id="results">
-  <thead>
-    <tr>
-      <th>URL</th>
-      <th>Status</th>
-      <th>Last Checked</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
+<table>
+<thead>
+<tr>
+  <th>URL</th>
+  <th>Status</th>
+  <th>Last Checked</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
 </table>
 
 <script>
 let timer = null;
 
+// MAIN CHECK FUNCTION
 async function checkURL(url) {
   try {
-    const response = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+    const response = await fetch(url);
+    const text = await response.text();
 
-    // NOTE: no-cors limits visibility → assume reachable if no error
-    return "Working";
+    // DOI-specific detection
+    if (text.includes("DOI Not Found")) {
+      return { status: "Invalid DOI", class: "fail" };
+    }
+
+    if (response.ok) {
+      return { status: "Working (" + response.status + ")", class: "ok" };
+    } else {
+      return { status: "Fail (" + response.status + ")", class: "fail" };
+    }
+
   } catch (error) {
-    return "Failed";
+    return { status: "Blocked / Failed", class: "warn" };
   }
 }
 
+// RUN CHECK
 async function runCheck() {
   const urls = document.getElementById("urls").value
     .split("\n")
     .map(u => u.trim())
     .filter(u => u);
 
-  const tbody = document.querySelector("#results tbody");
+  const tbody = document.getElementById("results");
   tbody.innerHTML = "";
 
   for (let url of urls) {
-    const status = await checkURL(url);
+    const result = await checkURL(url);
 
     const row = document.createElement("tr");
-
     row.innerHTML = `
       <td>${url}</td>
-      <td class="${status === 'Working' ? 'ok' : 'fail'}">${status}</td>
+      <td class="${result.class}">${result.status}</td>
       <td>${new Date().toLocaleTimeString()}</td>
     `;
 
@@ -75,16 +88,17 @@ async function runCheck() {
   }
 }
 
+// START TIMER
 function startChecking() {
-  const intervalMinutes = parseInt(document.getElementById("interval").value) || 30;
+  const interval = parseInt(document.getElementById("interval").value) || 30;
 
-  runCheck(); // run immediately
+  runCheck();
+  timer = setInterval(runCheck, interval * 60 * 1000);
 
-  timer = setInterval(runCheck, intervalMinutes * 60 * 1000);
-
-  alert("Started checking every " + intervalMinutes + " minutes");
+  alert("Running every " + interval + " minutes");
 }
 
+// STOP TIMER
 function stopChecking() {
   clearInterval(timer);
   alert("Stopped");
