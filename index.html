@@ -1,187 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>URL Checker</title>
-
-<style>
-  body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
-  textarea { width: 100%; height: 120px; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-  button { margin-top: 10px; padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; background-color: #007bff; color: white; }
-  button:hover { background-color: #0056b3; }
-  .stop-btn { background-color: #dc3545; }
-  .stop-btn:hover { background-color: #a71d2a; }
-  table { margin-top: 20px; border-collapse: collapse; width: 100%; background: white; }
-  td, th { border: 1px solid #ddd; padding: 12px; text-align: left; }
-  th { background-color: #f8f9fa; }
-  .ok { color: #28a745; font-weight: bold; }
-  .fail { color: #dc3545; font-weight: bold; }
-  .status-bar { margin-top: 10px; font-size: 0.9em; color: #666; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>24/7 URL Monitor Dashboard</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input { padding: 10px; width: 70%; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
+        button:hover { background: #0056b3; }
+        .delete-btn { background: #dc3545; margin-left: 10px; }
+        .delete-btn:hover { background: #a71d2a; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; background: #e9ecef; }
+    </style>
 </head>
-
 <body>
 
-<h2>URL & DOI Checker</h2>
+    <h2>🌐 URL Background Monitor</h2>
+    <p>The server checks these URLs every hour even if you close this page.</p>
 
-<textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
+    <div class="card">
+        <h3>Add New URL to Monitor</h3>
+        <input type="text" id="urlInput" placeholder="https://example.com">
+        <button onclick="addUrl()">Add to 24/7 List</button>
+    </div>
 
-<label>Check Interval:</label>
-<input type="number" id="interval" value="30" min="1" style="width: 50px;">
-<select id="unit">
-  <option value="minutes">Minutes</option>
-  <option value="hours">Hours</option>
-</select>
+    <div class="card">
+        <h3>Currently Monitoring</h3>
+        <button onclick="fetchActiveUrls()" style="background: #28a745;">🔄 Refresh List</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="urlTableBody">
+                </tbody>
+        </table>
+    </div>
 
-<br><br>
+    <script>
+        // REPLACE THIS with your actual Render URL
+        const API_BASE = "https://your-app-name.onrender.com";
 
-<label style="cursor: pointer;">
-  <input type="checkbox" id="emailToggle">
-  <strong>Enable Email Notifications</strong>
-</label>
-
-<div id="emailSection" style="display:none; margin-top: 10px;">
-  <input type="email" id="email" placeholder="your-email@gmail.com" style="padding: 8px; width: 250px;">
-  <p style="font-size: 0.8em; color: #666;">Results will be sent after every check.</p>
-</div>
-
-<br>
-
-<button onclick="startChecking()">Start Tracking</button>
-<button class="stop-btn" onclick="stopChecking()">Stop</button>
-
-<div id="statusMessage" class="status-bar"></div>
-
-<table>
-<thead>
-<tr>
-  <th>URL / DOI</th>
-  <th>Current Status</th>
-  <th>Last Checked</th>
-</tr>
-</thead>
-<tbody id="results"></tbody>
-</table>
-
-<script>
-// --- CONFIGURATION ---
-const API_URL = "https://url-checker-api-1qyw.onrender.com/check";
-const EMAIL_API = "https://url-checker-api-1qyw.onrender.com/send-email";
-
-let timer = null;
-
-// Show/Hide email input
-document.getElementById("emailToggle").addEventListener("change", function() {
-  document.getElementById("emailSection").style.display = this.checked ? "block" : "none";
-});
-
-// URL Normalizer
-function normalizeUrls(input) {
-  return input
-    .split("\n")
-    .map(u => u.trim())
-    .filter(u => u)
-    .map(u => {
-      if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      if (u.startsWith("10.")) return "https://doi.org/" + u;
-      if (u.startsWith("doi.org/")) return "https://" + u;
-      return "https://" + u;
-    });
-}
-
-// Core Check Function
-async function runCheck(sendEmailRequested = false) {
-  const input = document.getElementById("urls").value.trim();
-  if (!input) return;
-
-  const urls = normalizeUrls(input);
-  const statusDiv = document.getElementById("statusMessage");
-  statusDiv.innerText = "Checking URLs...";
-
-  try {
-    // 1. Fetch URL Statuses
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ urls })
-    });
-
-    const data = await response.json();
-
-    // 2. Update Table UI
-    const tbody = document.getElementById("results");
-    tbody.innerHTML = "";
-    data.forEach(item => {
-      const isFail = item.status.includes("Fail") || item.status.includes("Invalid");
-      const cls = isFail ? "fail" : "ok";
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${item.url}</td>
-        <td class="${cls}">${item.status}</td>
-        <td>${new Date().toLocaleTimeString()}</td>
-      `;
-      tbody.appendChild(row);
-    });
-
-    statusDiv.innerText = "Last check completed at " + new Date().toLocaleTimeString();
-
-    // 3. Handle Email Sending (UPDATED SECTION)
-    const emailEnabled = document.getElementById("emailToggle").checked;
-    const emailAddress = document.getElementById("email").value.trim();
-
-    if (sendEmailRequested && emailEnabled && emailAddress) {
-      console.log("Attempting to send email to:", emailAddress);
-      
-      try {
-        const emailResponse = await fetch(EMAIL_API, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ email: emailAddress, results: data })
-        });
-
-        const emailResult = await emailResponse.json();
-
-        if (emailResult.success) {
-          console.log("✅ Email sent successfully!");
-        } else {
-          console.error("❌ Email failed backend side:", emailResult.error);
-          alert("Email Error: " + (emailResult.details || emailResult.error));
+        // 1. Fetch the list of URLs the server is currently "remembering"
+        async function fetchActiveUrls() {
+            try {
+                const response = await fetch(`${API_BASE}/urls`);
+                const urls = await response.json();
+                renderTable(urls);
+            } catch (err) {
+                console.error("Failed to fetch URLs", err);
+            }
         }
-      } catch (emailErr) {
-        console.error("❌ Network error while sending email:", emailErr);
-        alert("Failed to connect to email service. The backend might be waking up.");
-      }
-    }
 
-  } catch (err) {
-    console.error("Main Fetch error:", err);
-    statusDiv.innerText = "Error: Backend unreachable. Wait 30s and try again.";
-  }
-}
+        // 2. Send a new URL to the server to be monitored 24/7
+        async function addUrl() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) return alert("Please enter a URL");
 
-// Control Functions
-function startChecking() {
-  const value = parseInt(document.getElementById("interval").value);
-  const unit = document.getElementById("unit").value;
-  let intervalMs = value * 60 * 1000;
-  if (unit === "hours") intervalMs *= 60;
+            try {
+                const response = await fetch(`${API_BASE}/urls/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await response.json();
+                if (data.error) alert(data.error);
+                
+                document.getElementById('urlInput').value = '';
+                fetchActiveUrls(); // Refresh the view
+            } catch (err) {
+                alert("Error adding URL");
+            }
+        }
 
-  // Run first check immediately
-  runCheck(true);
+        // 3. Tell the server to STOP monitoring a specific URL
+        async function removeUrl(url) {
+            try {
+                await fetch(`${API_BASE}/urls/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                fetchActiveUrls(); // Refresh the view
+            } catch (err) {
+                alert("Error removing URL");
+            }
+        }
 
-  // Set interval
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => runCheck(true), intervalMs);
+        // Helper: Build the table UI
+        function renderTable(urls) {
+            const tbody = document.getElementById('urlTableBody');
+            tbody.innerHTML = '';
+            
+            if (urls.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2">No URLs being monitored.</td></tr>';
+                return;
+            }
 
-  alert(`Monitoring started. Checking every ${value} ${unit}.`);
-}
+            urls.forEach(url => {
+                const row = `<tr>
+                    <td>${url}</td>
+                    <td><button class="delete-btn" onclick="removeUrl('${url}')">Stop Monitoring</button></td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
 
-function stopChecking() {
-  clearInterval(timer);
-  document.getElementById("statusMessage").innerText = "Monitoring stopped.";
-  alert("Stopped");
-}
-</script>
-
+        // Load list immediately on page open
+        fetchActiveUrls();
+    </script>
 </body>
 </html>
