@@ -17,7 +17,7 @@ td, th { padding:10px; border:1px solid #ddd; }
 
 <body>
 
-<h2>🌐 URL Checker (Multi URL + DOI Support)</h2>
+<h2>🌐 URL Checker</h2>
 
 <textarea id="urls" placeholder="Enter multiple URLs or DOIs (one per line)"></textarea>
 
@@ -37,27 +37,20 @@ td, th { padding:10px; border:1px solid #ddd; }
 <script>
 const API_URL = "https://url-checker-api-1qyw.onrender.com/check";
 
-// Normalize URLs + DOIs
 function normalizeUrls(input) {
-  return input
-    .split("\n")
+  return input.split("\n")
     .map(u => u.trim())
     .filter(u => u)
     .map(u => {
-      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      if (u.startsWith("http")) return u;
       if (u.startsWith("10.")) return "https://doi.org/" + u;
-      if (u.startsWith("doi.org/")) return "https://" + u;
       return "https://" + u;
     });
 }
 
 async function runCheck() {
   const input = document.getElementById("urls").value;
-
-  if (!input) {
-    alert("Please enter URLs or DOIs");
-    return;
-  }
+  if (!input) return alert("Enter URLs");
 
   const urls = normalizeUrls(input);
 
@@ -74,24 +67,18 @@ async function runCheck() {
     tbody.innerHTML = "";
 
     data.forEach(item => {
-      const cls =
-        item.status.includes("Fail") || item.status.includes("Invalid")
-          ? "fail"
-          : "ok";
+      const cls = item.status.includes("Fail") || item.status.includes("Invalid") ? "fail" : "ok";
 
-      const row = `
+      tbody.innerHTML += `
         <tr>
           <td>${item.url}</td>
           <td class="${cls}">${item.status}</td>
         </tr>
       `;
-
-      tbody.innerHTML += row;
     });
 
   } catch (err) {
-    console.error(err);
-    alert("Backend error (Render may be waking up, try again in 20s)");
+    alert("Backend error (wait 20s if sleeping)");
   }
 }
 </script>
