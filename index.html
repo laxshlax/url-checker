@@ -5,25 +5,29 @@
 <title>URL Checker</title>
 
 <style>
-  body { font-family: Arial; padding: 20px; }
-  textarea { width: 100%; height: 120px; }
-  button { margin-top: 10px; padding: 8px 12px; }
-  table { margin-top: 20px; border-collapse: collapse; width: 100%; }
-  td, th { border: 1px solid #ccc; padding: 8px; }
-  .ok { color: green; }
-  .fail { color: red; }
+  body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
+  textarea { width: 100%; height: 120px; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+  button { margin-top: 10px; padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; background-color: #007bff; color: white; }
+  button:hover { background-color: #0056b3; }
+  .stop-btn { background-color: #dc3545; }
+  .stop-btn:hover { background-color: #a71d2a; }
+  table { margin-top: 20px; border-collapse: collapse; width: 100%; background: white; }
+  td, th { border: 1px solid #ddd; padding: 12px; text-align: left; }
+  th { background-color: #f8f9fa; }
+  .ok { color: #28a745; font-weight: bold; }
+  .fail { color: #dc3545; font-weight: bold; }
+  .status-bar { margin-top: 10px; font-size: 0.9em; color: #666; }
 </style>
 </head>
 
 <body>
 
-<h2>URL Checker (Enhanced)</h2>
+<h2>URL & DOI Checker</h2>
 
 <textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
 
-<label>Interval:</label>
-<input type="number" id="interval" value="30" min="1">
-
+<label>Check Interval:</label>
+<input type="number" id="interval" value="30" min="1" style="width: 50px;">
 <select id="unit">
   <option value="minutes">Minutes</option>
   <option value="hours">Hours</option>
@@ -31,23 +35,28 @@
 
 <br><br>
 
-<label>
+<label style="cursor: pointer;">
   <input type="checkbox" id="emailToggle">
-  Email me results
+  <strong>Enable Email Notifications</strong>
 </label>
 
-<input type="email" id="email" placeholder="Enter email" style="display:none">
+<div id="emailSection" style="display:none; margin-top: 10px;">
+  <input type="email" id="email" placeholder="your-email@gmail.com" style="padding: 8px; width: 250px;">
+  <p style="font-size: 0.8em; color: #666;">Results will be sent after every check.</p>
+</div>
 
 <br>
 
-<button onclick="startChecking()">Start</button>
-<button onclick="stopChecking()">Stop</button>
+<button onclick="startChecking()">Start Tracking</button>
+<button class="stop-btn" onclick="stopChecking()">Stop</button>
+
+<div id="statusMessage" class="status-bar"></div>
 
 <table>
 <thead>
 <tr>
-  <th>URL</th>
-  <th>Status</th>
+  <th>URL / DOI</th>
+  <th>Current Status</th>
   <th>Last Checked</th>
 </tr>
 </thead>
@@ -55,67 +64,56 @@
 </table>
 
 <script>
+// --- CONFIGURATION ---
 const API_URL = "https://url-checker-api-qwfh.onrender.com/check";
 const EMAIL_API = "https://url-checker-api-qwfh.onrender.com/send-email";
 
 let timer = null;
 
-// Toggle email input
+// Show/Hide email input
 document.getElementById("emailToggle").addEventListener("change", function() {
-  document.getElementById("email").style.display = this.checked ? "inline" : "none";
+  document.getElementById("emailSection").style.display = this.checked ? "block" : "none";
 });
 
-// Normalize input (DOI + URL handling)
+// URL Normalizer
 function normalizeUrls(input) {
   return input
     .split("\n")
     .map(u => u.trim())
     .filter(u => u)
     .map(u => {
-      if (u.startsWith("http://") || u.startsWith("https://")) {
-        return u;
-      }
-      if (u.startsWith("10.")) {
-        return "https://doi.org/" + u;
-      }
-      if (u.startsWith("doi.org/")) {
-        return "https://" + u;
-      }
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      if (u.startsWith("10.")) return "https://doi.org/" + u;
+      if (u.startsWith("doi.org/")) return "https://" + u;
       return "https://" + u;
     });
 }
 
-// Run check
-async function runCheck(sendEmail = false) {
+// Core Check Function
+async function runCheck(sendEmailRequested = false) {
   const input = document.getElementById("urls").value.trim();
-  if (!input) return alert("Please enter URLs or DOIs");
+  if (!input) return;
 
   const urls = normalizeUrls(input);
+  const statusDiv = document.getElementById("statusMessage");
+  statusDiv.innerText = "Checking URLs...";
 
   try {
+    // 1. Fetch URL Statuses
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ urls })
     });
 
-    const contentType = response.headers.get("content-type");
-
-    if (!contentType || !contentType.includes("application/json")) {
-      const text = await response.text();
-      console.error("Server returned non-JSON:", text);
-      alert("Server error. Check console.");
-      return;
-    }
-
     const data = await response.json();
 
+    // 2. Update Table UI
     const tbody = document.getElementById("results");
     tbody.innerHTML = "";
-
     data.forEach(item => {
-      const cls = item.status.includes("Fail") || item.status.includes("Invalid") ? "fail" : "ok";
-
+      const isFail = item.status.includes("Fail") || item.status.includes("Invalid");
+      const cls = isFail ? "fail" : "ok";
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${item.url}</td>
@@ -125,43 +123,62 @@ async function runCheck(sendEmail = false) {
       tbody.appendChild(row);
     });
 
-    // Email option
-    if (sendEmail && document.getElementById("emailToggle").checked) {
-      const email = document.getElementById("email").value;
-      if (email) {
-        await fetch(EMAIL_API, {
+    statusDiv.innerText = "Last check completed at " + new Date().toLocaleTimeString();
+
+    // 3. Handle Email Sending (UPDATED SECTION)
+    const emailEnabled = document.getElementById("emailToggle").checked;
+    const emailAddress = document.getElementById("email").value.trim();
+
+    if (sendEmailRequested && emailEnabled && emailAddress) {
+      console.log("Attempting to send email to:", emailAddress);
+      
+      try {
+        const emailResponse = await fetch(EMAIL_API, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ email, results: data })
+          body: JSON.stringify({ email: emailAddress, results: data })
         });
+
+        const emailResult = await emailResponse.json();
+
+        if (emailResult.success) {
+          console.log("✅ Email sent successfully!");
+        } else {
+          console.error("❌ Email failed backend side:", emailResult.error);
+          alert("Email Error: " + (emailResult.details || emailResult.error));
+        }
+      } catch (emailErr) {
+        console.error("❌ Network error while sending email:", emailErr);
+        alert("Failed to connect to email service. The backend might be waking up.");
       }
     }
 
   } catch (err) {
-    console.error("Fetch error:", err);
-    alert("Backend not reachable (wait 30s if sleeping)");
+    console.error("Main Fetch error:", err);
+    statusDiv.innerText = "Error: Backend unreachable. Wait 30s and try again.";
   }
 }
 
-// Start interval
+// Control Functions
 function startChecking() {
   const value = parseInt(document.getElementById("interval").value);
   const unit = document.getElementById("unit").value;
-
   let intervalMs = value * 60 * 1000;
-  if (unit === "hours") {
-    intervalMs = value * 60 * 60 * 1000;
-  }
+  if (unit === "hours") intervalMs *= 60;
 
+  // Run first check immediately
   runCheck(true);
+
+  // Set interval
+  if (timer) clearInterval(timer);
   timer = setInterval(() => runCheck(true), intervalMs);
 
-  alert("Running every " + value + " " + unit);
+  alert(`Monitoring started. Checking every ${value} ${unit}.`);
 }
 
-// Stop interval
 function stopChecking() {
   clearInterval(timer);
+  document.getElementById("statusMessage").innerText = "Monitoring stopped.";
   alert("Stopped");
 }
 </script>
