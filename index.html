@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>URL Checker</title>
+<title>URL Checker Dashboard</title>
 
 <style>
 body { font-family: Arial; padding: 20px; background:#f4f4f9; }
@@ -10,8 +10,9 @@ textarea { width:100%; height:140px; padding:10px; }
 button { padding:10px 15px; margin-top:10px; cursor:pointer; }
 table { width:100%; margin-top:20px; border-collapse: collapse; }
 td, th { padding:10px; border:1px solid #ddd; }
-.ok { color:green; }
-.fail { color:red; }
+.ok { color:green; font-weight:bold; }
+.fail { color:red; font-weight:bold; }
+.loading { color:orange; }
 </style>
 </head>
 
@@ -19,10 +20,12 @@ td, th { padding:10px; border:1px solid #ddd; }
 
 <h2>🌐 URL Checker</h2>
 
-<textarea id="urls" placeholder="Enter multiple URLs or DOIs (one per line)"></textarea>
+<textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea>
 
 <br>
 <button onclick="runCheck()">Check Now</button>
+
+<p id="status"></p>
 
 <table>
 <thead>
@@ -37,6 +40,7 @@ td, th { padding:10px; border:1px solid #ddd; }
 <script>
 const API_URL = "https://url-checker-api-1qyw.onrender.com/check";
 
+// Normalize URLs / DOIs
 function normalizeUrls(input) {
   return input.split("\n")
     .map(u => u.trim())
@@ -48,14 +52,32 @@ function normalizeUrls(input) {
     });
 }
 
+// Retry fetch (handles Render cold start)
+async function fetchWithRetry(url, options, retries = 3) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    if (retries === 0) throw err;
+    document.getElementById("status").innerText = "⏳ Waking server... retrying";
+    await new Promise(r => setTimeout(r, 5000));
+    return fetchWithRetry(url, options, retries - 1);
+  }
+}
+
 async function runCheck() {
   const input = document.getElementById("urls").value;
   if (!input) return alert("Enter URLs");
 
   const urls = normalizeUrls(input);
 
+  const tbody = document.getElementById("results");
+  const statusText = document.getElementById("status");
+
+  tbody.innerHTML = "";
+  statusText.innerText = "⏳ Checking URLs...";
+
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetchWithRetry(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ urls })
@@ -63,11 +85,10 @@ async function runCheck() {
 
     const data = await res.json();
 
-    const tbody = document.getElementById("results");
-    tbody.innerHTML = "";
+    statusText.innerText = "✅ Done";
 
     data.forEach(item => {
-      const cls = item.status.includes("Fail") || item.status.includes("Invalid") ? "fail" : "ok";
+      const cls = item.status.includes("Working") ? "ok" : "fail";
 
       tbody.innerHTML += `
         <tr>
@@ -78,7 +99,7 @@ async function runCheck() {
     });
 
   } catch (err) {
-    alert("Backend error (wait 20s if sleeping)");
+    statusText.innerText = "❌ Backend error. Try again in few seconds.";
   }
 }
 </script>
