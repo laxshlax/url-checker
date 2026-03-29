@@ -13,6 +13,7 @@ td, th { padding:8px; border:1px solid #ddd; }
 .ok { color:green; font-weight:bold; }
 .fail { color:red; font-weight:bold; }
 .section { margin-top:30px; }
+input { padding:6px; }
 </style>
 </head>
 
@@ -20,7 +21,7 @@ td, th { padding:8px; border:1px solid #ddd; }
 
 <h2>🌐 URL Monitor Dashboard</h2>
 
-<!-- MANUAL CHECK -->
+<!-- ================= MANUAL CHECK ================= -->
 <div class="section">
 <h3>🔍 Manual Check</h3>
 
@@ -37,18 +38,27 @@ td, th { padding:8px; border:1px solid #ddd; }
 </table>
 </div>
 
-<!-- MONITOR CONTROL -->
+<!-- ================= EMAIL ================= -->
 <div class="section">
-<h3>⏱ Monitoring Settings</h3>
+<h3>📧 Alert Email</h3>
 
-<label>Interval (minutes): </label>
-<input type="number" id="interval" value="60" min="1">
-<button onclick="setIntervalTime()">Set Interval</button>
+<input type="email" id="email" placeholder="Enter alert email" style="width:60%">
+<button onclick="setEmail()">Save Email</button>
+
+<p id="emailStatus"></p>
+</div>
+
+<!-- ================= INTERVAL ================= -->
+<div class="section">
+<h3>⏱ Monitoring Interval</h3>
+
+<input type="number" id="interval" value="60" min="1"> minutes
+<button onclick="setIntervalTime()">Update</button>
 
 <p id="intervalStatus"></p>
 </div>
 
-<!-- ADD URL -->
+<!-- ================= ADD URL ================= -->
 <div class="section">
 <h3>➕ Add URL to Monitor</h3>
 
@@ -58,11 +68,11 @@ td, th { padding:8px; border:1px solid #ddd; }
 <p id="addStatus"></p>
 </div>
 
-<!-- ACTIVE LIST -->
+<!-- ================= LIST ================= -->
 <div class="section">
 <h3>📋 Monitored URLs</h3>
 
-<button onclick="loadUrls()">Refresh List</button>
+<button onclick="loadUrls()">Refresh</button>
 
 <table>
 <thead>
@@ -75,7 +85,7 @@ td, th { padding:8px; border:1px solid #ddd; }
 <script>
 const API = "https://url-checker-api-1qyw.onrender.com";
 
-// Normalize
+// Normalize URL
 function normalize(u) {
   u = u.trim();
   if (u.startsWith("http")) return u;
@@ -116,7 +126,35 @@ async function runCheck() {
   document.getElementById("status").innerText = "Done";
 }
 
-// ================= ADD URL =================
+// ================= EMAIL =================
+async function setEmail() {
+  const email = document.getElementById("email").value;
+
+  const res = await fetch(API + "/set-email", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ email })
+  });
+
+  const data = await res.json();
+  document.getElementById("emailStatus").innerText = data.message || data.error;
+}
+
+// ================= INTERVAL =================
+async function setIntervalTime() {
+  const minutes = document.getElementById("interval").value;
+
+  const res = await fetch(API + "/set-interval", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ minutes })
+  });
+
+  const data = await res.json();
+  document.getElementById("intervalStatus").innerText = data.message || data.error;
+}
+
+// ================= ADD =================
 async function addUrl() {
   const input = document.getElementById("singleUrl").value;
   if (!input) return;
@@ -135,7 +173,7 @@ async function addUrl() {
   loadUrls();
 }
 
-// ================= LOAD URLs =================
+// ================= LOAD =================
 async function loadUrls() {
   const res = await fetch(API + "/urls");
   const urls = await res.json();
@@ -162,20 +200,6 @@ async function removeUrl(url) {
   });
 
   loadUrls();
-}
-
-// ================= INTERVAL =================
-async function setIntervalTime() {
-  const minutes = document.getElementById("interval").value;
-
-  const res = await fetch(API + "/set-interval", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ minutes })
-  });
-
-  const data = await res.json();
-  document.getElementById("intervalStatus").innerText = data.message;
 }
 
 // Load initial list
