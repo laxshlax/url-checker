@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>URL Checker</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    textarea { width: 100%; height: 120px; }
+    button { margin-top: 10px; padding: 8px 12px; }
+    table { margin-top: 20px; border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    .ok { color: green; }
+    .fail { color: red; }
+  </style>
+</head>
+<body>
+
+<h2>URL Checker (30-min Interval)</h2>
+
+<textarea id="urls" placeholder="Enter URLs (one per line)"></textarea><br>
+
+<label>Interval (minutes): </label>
+<input type="number" id="interval" value="30" min="1">
+
+<br>
+<button onclick="startChecking()">Start</button>
+<button onclick="stopChecking()">Stop</button>
+
+<table id="results">
+  <thead>
+    <tr>
+      <th>URL</th>
+      <th>Status</th>
+      <th>Last Checked</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+let timer = null;
+
+async function checkURL(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+
+    // NOTE: no-cors limits visibility → assume reachable if no error
+    return "Working";
+  } catch (error) {
+    return "Failed";
+  }
+}
+
+async function runCheck() {
+  const urls = document.getElementById("urls").value
+    .split("\n")
+    .map(u => u.trim())
+    .filter(u => u);
+
+  const tbody = document.querySelector("#results tbody");
+  tbody.innerHTML = "";
+
+  for (let url of urls) {
+    const status = await checkURL(url);
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${url}</td>
+      <td class="${status === 'Working' ? 'ok' : 'fail'}">${status}</td>
+      <td>${new Date().toLocaleTimeString()}</td>
+    `;
+
+    tbody.appendChild(row);
+  }
+}
+
+function startChecking() {
+  const intervalMinutes = parseInt(document.getElementById("interval").value) || 30;
+
+  runCheck(); // run immediately
+
+  timer = setInterval(runCheck, intervalMinutes * 60 * 1000);
+
+  alert("Started checking every " + intervalMinutes + " minutes");
+}
+
+function stopChecking() {
+  clearInterval(timer);
+  alert("Stopped");
+}
+</script>
+
+</body>
+</html>
