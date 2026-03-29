@@ -21,7 +21,7 @@ input { padding:6px; }
 
 <h2>🌐 URL Monitor Dashboard</h2>
 
-<!-- ================= MANUAL CHECK ================= -->
+<!-- MANUAL CHECK -->
 <div class="section">
 <h3>🔍 Manual Check</h3>
 
@@ -43,40 +43,33 @@ input { padding:6px; }
 </table>
 </div>
 
-<!-- ================= EMAIL ================= -->
+<!-- EMAIL -->
 <div class="section">
 <h3>📧 Alert Email</h3>
-
 <input type="email" id="email" placeholder="Enter alert email" style="width:60%">
 <button onclick="setEmail()">Save Email</button>
-
 <p id="emailStatus"></p>
 </div>
 
-<!-- ================= INTERVAL ================= -->
+<!-- INTERVAL -->
 <div class="section">
 <h3>⏱ Monitoring Interval</h3>
-
 <input type="number" id="interval" value="60" min="1"> minutes
 <button onclick="setIntervalTime()">Update</button>
-
 <p id="intervalStatus"></p>
 </div>
 
-<!-- ================= ADD URL ================= -->
+<!-- ADD URL -->
 <div class="section">
 <h3>➕ Add URL to Monitor</h3>
-
 <input type="text" id="singleUrl" placeholder="Enter URL or DOI" style="width:60%">
 <button onclick="addUrl()">Add</button>
-
 <p id="addStatus"></p>
 </div>
 
-<!-- ================= MONITORED LIST ================= -->
+<!-- MONITORED -->
 <div class="section">
 <h3>📋 Monitored URLs</h3>
-
 <button onclick="loadUrls()">Refresh</button>
 
 <table>
@@ -105,7 +98,7 @@ function normalize(u) {
   return "https://" + u;
 }
 
-// ================= MANUAL CHECK =================
+// MANUAL CHECK
 async function runCheck() {
   const input = document.getElementById("urls").value;
   if (!input) return alert("Enter URLs");
@@ -115,32 +108,39 @@ async function runCheck() {
 
   document.getElementById("status").innerText = "Checking...";
 
-  const res = await fetch(API + "/check", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ urls, sendEmail })
-  });
+  try {
+    const res = await fetch(API + "/check", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ urls, sendEmail })
+    });
 
-  const data = await res.json();
-  const tbody = document.getElementById("results");
-  tbody.innerHTML = "";
+    if (!res.ok) throw new Error("Server error");
 
-  data.results.forEach(d => {
-    const cls = d.status.includes("Working") ? "ok" : "fail";
+    const data = await res.json();
 
-    tbody.innerHTML += `
-      <tr>
-        <td>${d.url}</td>
-        <td class="${cls}">${d.status}</td>
-      </tr>
-    `;
-  });
+    const tbody = document.getElementById("results");
+    tbody.innerHTML = "";
 
-  document.getElementById("status").innerText =
-    sendEmail ? "Done + Email Sent (if configured)" : "Done";
+    data.results.forEach(d => {
+      const cls = d.status.includes("Working") ? "ok" : "fail";
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${d.url}</td>
+          <td class="${cls}">${d.status}</td>
+        </tr>
+      `;
+    });
+
+    document.getElementById("status").innerText = "✅ Done";
+
+  } catch (err) {
+    document.getElementById("status").innerText = "❌ " + err.message;
+  }
 }
 
-// ================= EMAIL =================
+// EMAIL
 async function setEmail() {
   const email = document.getElementById("email").value;
 
@@ -154,7 +154,7 @@ async function setEmail() {
   document.getElementById("emailStatus").innerText = data.message || data.error;
 }
 
-// ================= INTERVAL =================
+// INTERVAL
 async function setIntervalTime() {
   const minutes = document.getElementById("interval").value;
 
@@ -168,7 +168,7 @@ async function setIntervalTime() {
   document.getElementById("intervalStatus").innerText = data.message || data.error;
 }
 
-// ================= ADD =================
+// ADD
 async function addUrl() {
   const input = document.getElementById("singleUrl").value;
   if (!input) return;
@@ -187,7 +187,7 @@ async function addUrl() {
   loadUrls();
 }
 
-// ================= LOAD =================
+// LOAD
 async function loadUrls() {
   const res = await fetch(API + "/urls");
   const data = await res.json();
@@ -214,7 +214,7 @@ async function loadUrls() {
   });
 }
 
-// ================= REMOVE =================
+// REMOVE
 async function removeUrl(url) {
   await fetch(API + "/urls/remove", {
     method: "POST",
@@ -225,7 +225,6 @@ async function removeUrl(url) {
   loadUrls();
 }
 
-// Initial load
 loadUrls();
 </script>
 
