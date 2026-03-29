@@ -2,106 +2,184 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>URL Checker Dashboard</title>
+<title>URL Monitor Dashboard</title>
 
 <style>
 body { font-family: Arial; padding: 20px; background:#f4f4f9; }
-textarea { width:100%; height:140px; padding:10px; }
-button { padding:10px 15px; margin-top:10px; cursor:pointer; }
-table { width:100%; margin-top:20px; border-collapse: collapse; }
-td, th { padding:10px; border:1px solid #ddd; }
+textarea { width:100%; height:120px; padding:10px; }
+button { padding:8px 12px; margin:5px; cursor:pointer; }
+table { width:100%; margin-top:15px; border-collapse: collapse; }
+td, th { padding:8px; border:1px solid #ddd; }
 .ok { color:green; font-weight:bold; }
 .fail { color:red; font-weight:bold; }
-.loading { color:orange; }
+.section { margin-top:30px; }
 </style>
 </head>
 
 <body>
 
-<h2>🌐 URL Checker</h2>
+<h2>🌐 URL Monitor Dashboard</h2>
 
-<textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea>
+<!-- MANUAL CHECK -->
+<div class="section">
+<h3>🔍 Manual Check</h3>
 
-<br>
+<textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
 <button onclick="runCheck()">Check Now</button>
 
 <p id="status"></p>
 
 <table>
 <thead>
-<tr>
-<th>URL</th>
-<th>Status</th>
-</tr>
+<tr><th>URL</th><th>Status</th></tr>
 </thead>
 <tbody id="results"></tbody>
 </table>
+</div>
+
+<!-- MONITOR CONTROL -->
+<div class="section">
+<h3>⏱ Monitoring Settings</h3>
+
+<label>Interval (minutes): </label>
+<input type="number" id="interval" value="60" min="1">
+<button onclick="setIntervalTime()">Set Interval</button>
+
+<p id="intervalStatus"></p>
+</div>
+
+<!-- ADD URL -->
+<div class="section">
+<h3>➕ Add URL to Monitor</h3>
+
+<input type="text" id="singleUrl" placeholder="Enter URL or DOI" style="width:60%">
+<button onclick="addUrl()">Add</button>
+
+<p id="addStatus"></p>
+</div>
+
+<!-- ACTIVE LIST -->
+<div class="section">
+<h3>📋 Monitored URLs</h3>
+
+<button onclick="loadUrls()">Refresh List</button>
+
+<table>
+<thead>
+<tr><th>URL</th><th>Action</th></tr>
+</thead>
+<tbody id="urlList"></tbody>
+</table>
+</div>
 
 <script>
-const API_URL = "https://url-checker-api-1qyw.onrender.com/check";
+const API = "https://url-checker-api-1qyw.onrender.com";
 
-// Normalize URLs / DOIs
-function normalizeUrls(input) {
-  return input.split("\n")
-    .map(u => u.trim())
-    .filter(u => u)
-    .map(u => {
-      if (u.startsWith("http")) return u;
-      if (u.startsWith("10.")) return "https://doi.org/" + u;
-      return "https://" + u;
-    });
+// Normalize
+function normalize(u) {
+  u = u.trim();
+  if (u.startsWith("http")) return u;
+  if (u.startsWith("10.")) return "https://doi.org/" + u;
+  return "https://" + u;
 }
 
-// Retry fetch (handles Render cold start)
-async function fetchWithRetry(url, options, retries = 3) {
-  try {
-    return await fetch(url, options);
-  } catch (err) {
-    if (retries === 0) throw err;
-    document.getElementById("status").innerText = "⏳ Waking server... retrying";
-    await new Promise(r => setTimeout(r, 5000));
-    return fetchWithRetry(url, options, retries - 1);
-  }
-}
-
+// ================= MANUAL CHECK =================
 async function runCheck() {
   const input = document.getElementById("urls").value;
   if (!input) return alert("Enter URLs");
 
-  const urls = normalizeUrls(input);
+  const urls = input.split("\n").map(normalize);
 
+  document.getElementById("status").innerText = "Checking...";
+
+  const res = await fetch(API + "/check", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ urls })
+  });
+
+  const data = await res.json();
   const tbody = document.getElementById("results");
-  const statusText = document.getElementById("status");
-
   tbody.innerHTML = "";
-  statusText.innerText = "⏳ Checking URLs...";
 
-  try {
-    const res = await fetchWithRetry(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ urls })
-    });
+  data.forEach(d => {
+    const cls = d.status.includes("Working") ? "ok" : "fail";
 
-    const data = await res.json();
+    tbody.innerHTML += `
+      <tr>
+        <td>${d.url}</td>
+        <td class="${cls}">${d.status}</td>
+      </tr>
+    `;
+  });
 
-    statusText.innerText = "✅ Done";
-
-    data.forEach(item => {
-      const cls = item.status.includes("Working") ? "ok" : "fail";
-
-      tbody.innerHTML += `
-        <tr>
-          <td>${item.url}</td>
-          <td class="${cls}">${item.status}</td>
-        </tr>
-      `;
-    });
-
-  } catch (err) {
-    statusText.innerText = "❌ Backend error. Try again in few seconds.";
-  }
+  document.getElementById("status").innerText = "Done";
 }
+
+// ================= ADD URL =================
+async function addUrl() {
+  const input = document.getElementById("singleUrl").value;
+  if (!input) return;
+
+  const url = normalize(input);
+
+  const res = await fetch(API + "/urls/add", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ url })
+  });
+
+  const data = await res.json();
+  document.getElementById("addStatus").innerText = data.message || data.error;
+
+  loadUrls();
+}
+
+// ================= LOAD URLs =================
+async function loadUrls() {
+  const res = await fetch(API + "/urls");
+  const urls = await res.json();
+
+  const tbody = document.getElementById("urlList");
+  tbody.innerHTML = "";
+
+  urls.forEach(u => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${u}</td>
+        <td><button onclick="removeUrl('${u}')">Remove</button></td>
+      </tr>
+    `;
+  });
+}
+
+// ================= REMOVE =================
+async function removeUrl(url) {
+  await fetch(API + "/urls/remove", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ url })
+  });
+
+  loadUrls();
+}
+
+// ================= INTERVAL =================
+async function setIntervalTime() {
+  const minutes = document.getElementById("interval").value;
+
+  const res = await fetch(API + "/set-interval", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ minutes })
+  });
+
+  const data = await res.json();
+  document.getElementById("intervalStatus").innerText = data.message;
+}
+
+// Load initial list
+loadUrls();
 </script>
 
 </body>
