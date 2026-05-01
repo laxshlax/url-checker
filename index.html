@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,23 +16,20 @@ td, th { padding:8px; border:1px solid #ddd; }
 .section { margin-top:30px; }
 input { padding:6px; }
 </style>
+
 </head>
 
 <body>
 
 <h2>🌐 URL Monitor Dashboard</h2>
 
-<!-- ================= MANUAL CHECK ================= -->
 <div class="section">
 <h3>🔍 Manual Check</h3>
 
 <textarea id="urls" placeholder="Enter URLs or DOIs (one per line)"></textarea><br>
 
-<button onclick="runCheck()">Check Now</button>
-<label>
-  <input type="checkbox" id="sendEmailNow">
-  Send email for this check
-</label>
+<button onclick="runCheck()">Check Now</button> <label> <input type="checkbox" id="sendEmailNow">
+Send email for this check </label>
 
 <p id="status"></p>
 
@@ -44,15 +42,11 @@ input { padding:6px; }
 
 <br>
 
-<button onclick="addCheckedToMonitor()">➕ Add results to Monitor</button>
-<label>
-  <input type="checkbox" id="onlyFailed">
-  Only failed URLs
-</label>
+<button onclick="addCheckedToMonitor()">➕ Add results to Monitor</button> <label> <input type="checkbox" id="onlyFailed">
+Only failed URLs </label>
 
 </div>
 
-<!-- ================= EMAIL ================= -->
 <div class="section">
 <h3>📧 Alert Email</h3>
 <input type="email" id="email" placeholder="Enter alert email" style="width:60%">
@@ -60,21 +54,18 @@ input { padding:6px; }
 <p id="emailStatus"></p>
 </div>
 
-<!-- ================= SUBJECTS ================= -->
 <div class="section">
 <h3>✉️ Email Subjects</h3>
 
-<label>Manual Check Subject:</label><br>
-<input type="text" id="manualSubject" style="width:60%"><br><br>
+<label>Manual Check Subject:</label><br> <input type="text" id="manualSubject" style="width:60%"><br><br>
 
-<label>Monitoring Subject:</label><br>
-<input type="text" id="monitorSubject" style="width:60%"><br><br>
+<label>Monitoring Subject:</label><br> <input type="text" id="monitorSubject" style="width:60%"><br><br>
 
 <button onclick="setSubjects()">Save Subjects</button>
+
 <p id="subjectStatus"></p>
 </div>
 
-<!-- ================= INTERVAL ================= -->
 <div class="section">
 <h3>⏱ Monitoring Interval</h3>
 <input type="number" id="interval" value="60" min="1"> minutes
@@ -82,7 +73,6 @@ input { padding:6px; }
 <p id="intervalStatus"></p>
 </div>
 
-<!-- ================= ADD URL ================= -->
 <div class="section">
 <h3>➕ Add Single URL</h3>
 <input type="text" id="singleUrl" placeholder="Enter URL or DOI" style="width:60%">
@@ -90,7 +80,6 @@ input { padding:6px; }
 <p id="addStatus"></p>
 </div>
 
-<!-- ================= MONITORED TABLE ================= -->
 <div class="section">
 <h3>📋 Monitored URLs</h3>
 <button onclick="loadUrls()">Refresh</button>
